@@ -36,10 +36,11 @@
 
         function changeColor() {
             const element = document.getElementById('helloWorld');
-            element.style.color = getRandomColor();
+            const newColor = getRandomColor();
+            element.style.color = newColor;
 
-            // 배경색 번쩍 효과
-            document.body.style.backgroundColor = '#fff';
+            // 배경색 번쩍 효과 - 텍스트와 같은 색상
+            document.body.style.backgroundColor = newColor;
             setTimeout(() => {
                 document.body.style.backgroundColor = '#000';
             }, 100);
