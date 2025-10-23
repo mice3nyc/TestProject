@@ -37,13 +37,19 @@
         function changeColor() {
             const element = document.getElementById('helloWorld');
             element.style.color = getRandomColor();
+
+            // 배경색 번쩍 효과
+            document.body.style.backgroundColor = '#fff';
+            setTimeout(() => {
+                document.body.style.backgroundColor = '#000';
+            }, 100);
         }
 
         // 페이지 로드 시 첫 색상 설정
         changeColor();
 
-        // 1초마다 색상 변경
-        setInterval(changeColor, 1000);
+        // 2초마다 색상 변경
+        setInterval(changeColor, 2000);
     </script>
 </body>
 </html>
