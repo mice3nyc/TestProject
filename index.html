@@ -3,54 +3,153 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hello World</title>
+    <title>Hello World - Art Coding</title>
     <style>
-        body {
+        * {
             margin: 0;
             padding: 0;
-            height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background-color: #000;
-            font-family: Arial, sans-serif;
+            box-sizing: border-box;
         }
 
-        h1 {
-            font-size: 72px;
-            font-weight: bold;
-            transition: color 0.5s ease;
+        body {
+            overflow: hidden;
+            background: #000;
+            font-family: 'Arial', sans-serif;
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        #text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 80px;
+            font-weight: 900;
+            letter-spacing: 10px;
+            background: linear-gradient(45deg, #ff0080, #ff8c00, #40e0d0, #ff0080);
+            background-size: 300% 300%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: gradient 3s ease infinite, float 4s ease-in-out infinite;
+            text-shadow: 0 0 30px rgba(255, 0, 128, 0.5);
+            z-index: 10;
+        }
+
+        @keyframes gradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translate(-50%, -50%) translateY(0px); }
+            50% { transform: translate(-50%, -50%) translateY(-20px); }
+        }
+
+        @media (max-width: 600px) {
+            #text {
+                font-size: 48px;
+                letter-spacing: 5px;
+            }
         }
     </style>
 </head>
 <body>
-    <h1 id="helloWorld">Hello World</h1>
+    <canvas id="canvas"></canvas>
+    <div id="text">HELLO WORLD</div>
 
     <script>
-        function getRandomColor() {
-            const r = Math.floor(Math.random() * 256);
-            const g = Math.floor(Math.random() * 256);
-            const b = Math.floor(Math.random() * 256);
-            return `rgb(${r}, ${g}, ${b})`;
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+
+        class Particle {
+            constructor() {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.size = Math.random() * 3 + 1;
+                this.speedX = Math.random() * 2 - 1;
+                this.speedY = Math.random() * 2 - 1;
+                this.color = `hsl(${Math.random() * 360}, 80%, 60%)`;
+            }
+
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+
+                if (this.x > canvas.width || this.x < 0) {
+                    this.speedX = -this.speedX;
+                }
+                if (this.y > canvas.height || this.y < 0) {
+                    this.speedY = -this.speedY;
+                }
+            }
+
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Glow effect
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = this.color;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
         }
 
-        function changeColor() {
-            const element = document.getElementById('helloWorld');
-            const newColor = getRandomColor();
-            element.style.color = newColor;
-
-            // 배경색 번쩍 효과 - 텍스트와 같은 색상
-            document.body.style.backgroundColor = newColor;
-            setTimeout(() => {
-                document.body.style.backgroundColor = '#000';
-            }, 100);
+        const particles = [];
+        for (let i = 0; i < 100; i++) {
+            particles.push(new Particle());
         }
 
-        // 페이지 로드 시 첫 색상 설정
-        changeColor();
+        function connectParticles() {
+            for (let i = 0; i < particles.length; i++) {
+                for (let j = i + 1; j < particles.length; j++) {
+                    const dx = particles[i].x - particles[j].x;
+                    const dy = particles[i].y - particles[j].y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
 
-        // 2초마다 색상 변경
-        setInterval(changeColor, 2000);
+                    if (distance < 150) {
+                        ctx.strokeStyle = `rgba(255, 255, 255, ${1 - distance / 150})`;
+                        ctx.lineWidth = 0.5;
+                        ctx.beginPath();
+                        ctx.moveTo(particles[i].x, particles[i].y);
+                        ctx.lineTo(particles[j].x, particles[j].y);
+                        ctx.stroke();
+                    }
+                }
+            }
+        }
+
+        function animate() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            particles.forEach(particle => {
+                particle.update();
+                particle.draw();
+            });
+
+            connectParticles();
+            requestAnimationFrame(animate);
+        }
+
+        animate();
     </script>
 </body>
 </html>
