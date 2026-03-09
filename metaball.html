@@ -27,10 +27,12 @@
             filter: url(#goo);
         }
 
-        canvas {
-            display: block;
-            width: 100%;
-            height: 100%;
+        .ball {
+            position: absolute;
+            border-radius: 50%;
+            cursor: pointer;
+            user-select: none;
+            -webkit-user-select: none;
         }
 
         svg {
@@ -55,21 +57,11 @@
         </defs>
     </svg>
 
-    <div id="container">
-        <canvas id="canvas"></canvas>
-    </div>
+    <div id="container"></div>
 
     <script>
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
-
-        // Canvas setup
-        function resizeCanvas() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        }
-        resizeCanvas();
-        window.addEventListener('resize', resizeCanvas);
+        const container = document.getElementById('container');
+        const FIXED_SPEED = 3; // Fixed speed for all balls
 
         // Ball class
         class Ball {
@@ -77,12 +69,24 @@
                 this.x = x;
                 this.y = y;
                 this.radius = radius;
-                this.vx = (Math.random() - 0.5) * 4;
-                this.vy = (Math.random() - 0.5) * 4;
+
+                // Random initial direction with fixed speed
+                const angle = Math.random() * Math.PI * 2;
+                this.vx = Math.cos(angle) * FIXED_SPEED;
+                this.vy = Math.sin(angle) * FIXED_SPEED;
+
                 this.color = color;
                 this.isDragging = false;
-                this.dragStartX = 0;
-                this.dragStartY = 0;
+
+                // Create DOM element
+                this.element = document.createElement('div');
+                this.element.className = 'ball';
+                this.element.style.width = radius * 2 + 'px';
+                this.element.style.height = radius * 2 + 'px';
+                this.element.style.backgroundColor = color;
+                container.appendChild(this.element);
+
+                this.updatePosition();
             }
 
             update() {
@@ -92,22 +96,22 @@
                     this.y += this.vy;
 
                     // Bounce off walls
-                    if (this.x - this.radius < 0 || this.x + this.radius > canvas.width) {
+                    if (this.x - this.radius < 0 || this.x + this.radius > window.innerWidth) {
                         this.vx *= -1;
-                        this.x = Math.max(this.radius, Math.min(canvas.width - this.radius, this.x));
+                        this.x = Math.max(this.radius, Math.min(window.innerWidth - this.radius, this.x));
                     }
-                    if (this.y - this.radius < 0 || this.y + this.radius > canvas.height) {
+                    if (this.y - this.radius < 0 || this.y + this.radius > window.innerHeight) {
                         this.vy *= -1;
-                        this.y = Math.max(this.radius, Math.min(canvas.height - this.radius, this.y));
+                        this.y = Math.max(this.radius, Math.min(window.innerHeight - this.radius, this.y));
                     }
+
+                    this.updatePosition();
                 }
             }
 
-            draw() {
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-                ctx.fillStyle = this.color;
-                ctx.fill();
+            updatePosition() {
+                this.element.style.left = (this.x - this.radius) + 'px';
+                this.element.style.top = (this.y - this.radius) + 'px';
             }
 
             contains(x, y) {
@@ -118,40 +122,32 @@
 
             startDrag(x, y) {
                 this.isDragging = true;
-                this.dragStartX = x;
-                this.dragStartY = y;
-                this.lastX = x;
-                this.lastY = y;
-                this.lastTime = Date.now();
+                this.dragStartX = this.x;
+                this.dragStartY = this.y;
             }
 
             drag(x, y) {
                 if (this.isDragging) {
-                    const now = Date.now();
-                    const dt = now - this.lastTime;
-
                     this.x = x;
                     this.y = y;
-
-                    // Track velocity during drag
-                    if (dt > 0) {
-                        this.vx = (x - this.lastX) / dt * 16;
-                        this.vy = (y - this.lastY) / dt * 16;
-                    }
-
-                    this.lastX = x;
-                    this.lastY = y;
-                    this.lastTime = now;
+                    this.updatePosition();
                 }
             }
 
-            endDrag() {
+            endDrag(endX, endY) {
                 if (this.isDragging) {
                     this.isDragging = false;
-                    // Velocity is already set from drag movement
-                    // Apply some damping for smoother release
-                    this.vx *= 0.8;
-                    this.vy *= 0.8;
+
+                    // Calculate direction from drag start to end
+                    const dx = endX - this.dragStartX;
+                    const dy = endY - this.dragStartY;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+
+                    if (distance > 5) { // Minimum drag distance
+                        // Set velocity to fixed speed in drag direction
+                        this.vx = (dx / distance) * FIXED_SPEED;
+                        this.vy = (dy / distance) * FIXED_SPEED;
+                    }
                 }
             }
         }
@@ -163,8 +159,8 @@
 
         for (let i = 0; i < numBalls; i++) {
             const radius = 40 + Math.random() * 40;
-            const x = radius + Math.random() * (canvas.width - radius * 2);
-            const y = radius + Math.random() * (canvas.height - radius * 2);
+            const x = radius + Math.random() * (window.innerWidth - radius * 2);
+            const y = radius + Math.random() * (window.innerHeight - radius * 2);
             balls.push(new Ball(x, y, radius, colors[i % colors.length]));
         }
 
@@ -172,13 +168,9 @@
         let draggedBall = null;
 
         function getEventPos(e) {
-            const rect = canvas.getBoundingClientRect();
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
             const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-            return {
-                x: clientX - rect.left,
-                y: clientY - rect.top
-            };
+            return { x: clientX, y: clientY };
         }
 
         function onPointerDown(e) {
@@ -206,32 +198,28 @@
         function onPointerUp(e) {
             if (draggedBall) {
                 e.preventDefault();
-                draggedBall.endDrag();
+                const pos = getEventPos(e);
+                draggedBall.endDrag(pos.x, pos.y);
                 draggedBall = null;
             }
         }
 
         // Mouse events
-        canvas.addEventListener('mousedown', onPointerDown);
-        canvas.addEventListener('mousemove', onPointerMove);
-        canvas.addEventListener('mouseup', onPointerUp);
-        canvas.addEventListener('mouseleave', onPointerUp);
+        document.addEventListener('mousedown', onPointerDown);
+        document.addEventListener('mousemove', onPointerMove);
+        document.addEventListener('mouseup', onPointerUp);
 
         // Touch events
-        canvas.addEventListener('touchstart', onPointerDown);
-        canvas.addEventListener('touchmove', onPointerMove);
-        canvas.addEventListener('touchend', onPointerUp);
-        canvas.addEventListener('touchcancel', onPointerUp);
+        document.addEventListener('touchstart', onPointerDown, { passive: false });
+        document.addEventListener('touchmove', onPointerMove, { passive: false });
+        document.addEventListener('touchend', onPointerUp, { passive: false });
+        document.addEventListener('touchcancel', onPointerUp);
 
         // Animation loop
         function animate() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
             balls.forEach(ball => {
                 ball.update();
-                ball.draw();
             });
-
             requestAnimationFrame(animate);
         }
 
