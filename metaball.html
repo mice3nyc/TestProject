@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Metaball Physics</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            overflow: hidden;
+            background: #0a0a0a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            filter: url(#goo);
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        svg {
+            position: absolute;
+            width: 0;
+            height: 0;
+        }
+    </style>
+</head>
+<body>
+    <svg>
+        <defs>
+            <filter id="goo">
+                <feGaussianBlur in="SourceGraphic" stdDeviation="15" result="blur" />
+                <feColorMatrix in="blur" mode="matrix"
+                    values="1 0 0 0 0
+                            0 1 0 0 0
+                            0 0 1 0 0
+                            0 0 0 19 -9" result="goo" />
+                <feComposite in="SourceGraphic" in2="goo" operator="atop"/>
+            </filter>
+        </defs>
+    </svg>
+
+    <div id="container">
+        <canvas id="canvas"></canvas>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        // Canvas setup
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // Ball class
+        class Ball {
+            constructor(x, y, radius, color) {
+                this.x = x;
+                this.y = y;
+                this.radius = radius;
+                this.vx = (Math.random() - 0.5) * 4;
+                this.vy = (Math.random() - 0.5) * 4;
+                this.color = color;
+                this.isDragging = false;
+                this.dragStartX = 0;
+                this.dragStartY = 0;
+            }
+
+            update() {
+                if (!this.isDragging) {
+                    // Move
+                    this.x += this.vx;
+                    this.y += this.vy;
+
+                    // Bounce off walls
+                    if (this.x - this.radius < 0 || this.x + this.radius > canvas.width) {
+                        this.vx *= -1;
+                        this.x = Math.max(this.radius, Math.min(canvas.width - this.radius, this.x));
+                    }
+                    if (this.y - this.radius < 0 || this.y + this.radius > canvas.height) {
+                        this.vy *= -1;
+                        this.y = Math.max(this.radius, Math.min(canvas.height - this.radius, this.y));
+                    }
+                }
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+            }
+
+            contains(x, y) {
+                const dx = x - this.x;
+                const dy = y - this.y;
+                return dx * dx + dy * dy <= this.radius * this.radius;
+            }
+
+            startDrag(x, y) {
+                this.isDragging = true;
+                this.dragStartX = x;
+                this.dragStartY = y;
+                this.lastX = x;
+                this.lastY = y;
+                this.lastTime = Date.now();
+            }
+
+            drag(x, y) {
+                if (this.isDragging) {
+                    const now = Date.now();
+                    const dt = now - this.lastTime;
+
+                    this.x = x;
+                    this.y = y;
+
+                    // Track velocity during drag
+                    if (dt > 0) {
+                        this.vx = (x - this.lastX) / dt * 16;
+                        this.vy = (y - this.lastY) / dt * 16;
+                    }
+
+                    this.lastX = x;
+                    this.lastY = y;
+                    this.lastTime = now;
+                }
+            }
+
+            endDrag() {
+                if (this.isDragging) {
+                    this.isDragging = false;
+                    // Velocity is already set from drag movement
+                    // Apply some damping for smoother release
+                    this.vx *= 0.8;
+                    this.vy *= 0.8;
+                }
+            }
+        }
+
+        // Create balls
+        const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8'];
+        const balls = [];
+        const numBalls = 5;
+
+        for (let i = 0; i < numBalls; i++) {
+            const radius = 40 + Math.random() * 40;
+            const x = radius + Math.random() * (canvas.width - radius * 2);
+            const y = radius + Math.random() * (canvas.height - radius * 2);
+            balls.push(new Ball(x, y, radius, colors[i % colors.length]));
+        }
+
+        // Mouse/Touch interaction
+        let draggedBall = null;
+
+        function getEventPos(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return {
+                x: clientX - rect.left,
+                y: clientY - rect.top
+            };
+        }
+
+        function onPointerDown(e) {
+            e.preventDefault();
+            const pos = getEventPos(e);
+
+            // Check if clicking on a ball (reverse order for top ball priority)
+            for (let i = balls.length - 1; i >= 0; i--) {
+                if (balls[i].contains(pos.x, pos.y)) {
+                    draggedBall = balls[i];
+                    draggedBall.startDrag(pos.x, pos.y);
+                    break;
+                }
+            }
+        }
+
+        function onPointerMove(e) {
+            if (draggedBall) {
+                e.preventDefault();
+                const pos = getEventPos(e);
+                draggedBall.drag(pos.x, pos.y);
+            }
+        }
+
+        function onPointerUp(e) {
+            if (draggedBall) {
+                e.preventDefault();
+                draggedBall.endDrag();
+                draggedBall = null;
+            }
+        }
+
+        // Mouse events
+        canvas.addEventListener('mousedown', onPointerDown);
+        canvas.addEventListener('mousemove', onPointerMove);
+        canvas.addEventListener('mouseup', onPointerUp);
+        canvas.addEventListener('mouseleave', onPointerUp);
+
+        // Touch events
+        canvas.addEventListener('touchstart', onPointerDown);
+        canvas.addEventListener('touchmove', onPointerMove);
+        canvas.addEventListener('touchend', onPointerUp);
+        canvas.addEventListener('touchcancel', onPointerUp);
+
+        // Animation loop
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            balls.forEach(ball => {
+                ball.update();
+                ball.draw();
+            });
+
+            requestAnimationFrame(animate);
+        }
+
+        animate();
+    </script>
+</body>
+</html>
